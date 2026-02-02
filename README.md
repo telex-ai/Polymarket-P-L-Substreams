@@ -1,113 +1,271 @@
 # Polymarket P&L Substreams
 
-A comprehensive Substreams package that captures all Polymarket trading data and P&L calculations, perfectly matching the Dune Analytics query structure.
+<p align="center">
+  <img src="./polymarket-pnl-icon.png" alt="Polymarket P&L" width="120"/>
+</p>
 
-## 🎯 Features
+<p align="center">
+  <strong>Real-time Profit & Loss tracking for Polymarket prediction markets on Polygon</strong>
+</p>
 
-- **Complete Data Capture**: All 13 data sources from the Dune query
-- **Real-time Streaming**: Live data from Polygon mainnet
-- **Perfect Dune Match**: 100% data structure compatibility
-- **Comprehensive P&L**: Trading, liquidity, and reward calculations
-- **Market Metadata**: Question data and market information
-- **Price Discovery**: Real-time price tracking from order fills
-
-## 🚀 Quick Start
-
-### 1. Test Endpoint
-```bash
-python3 examples/test_scripts/test_proper_endpoint.py
-```
-
-### 2. Stream 7 Days of Data
-```bash
-python3 scripts/stream_7days_proper.py
-```
-
-### 3. View Dashboard
-The script will create a comprehensive Dune-style dashboard with:
-- Top 25 traders leaderboard
-- P&L analytics
-- Market activity summary
-- Complete data export
-
-## 📊 Data Sources Captured
-
-1. **Market Creation** - CTF Exchange & Neg Risk markets
-2. **Trading Activity** - ERC1155 transfers & order fills
-3. **USDC Transfers** - Trading-related USDC movements
-4. **Liquidity Rewards** - UMA & USDC Merkle Distributor claims
-5. **AMM Markets** - Fixed Product Market Maker creation
-6. **Price Data** - Real-time price discovery
-7. **Question Metadata** - Market questions and details
-8. **Batch Transfers** - Multi-token transfers
-9. **Additional Rewards** - USDC distributor claims
-10. **Transaction Hashes** - Real blockchain transaction IDs
-11. **Block Timestamps** - Precise timing data
-12. **User Balances** - Share values and USDC positions
-13. **P&L Calculations** - Comprehensive profit/loss tracking
-
-## 🏗️ Architecture
-
-```
-src/
-├── lib.rs          # Main processing logic
-├── abi.rs          # ABI decoding functions
-└── ...
-
-proto/
-└── contract.proto  # Protobuf message definitions
-
-scripts/
-├── stream_7days_proper.py    # Main 7-day streaming
-├── stream_7days_simple.py    # Simplified streaming
-└── stream_recent_data.py     # Recent data streaming
-
-examples/
-├── old_dashboards/           # Dashboard implementations
-└── test_scripts/            # Testing utilities
-```
-
-## 🔧 Configuration
-
-The package uses the official Polygon endpoint:
-- **Endpoint**: `polygon.streamingfast.io:443`
-- **Network**: Polygon Mainnet
-- **Authentication**: Via environment variables
-
-## 📈 Output Format
-
-Perfect match with Dune query structure:
-```json
-{
-  "userPnls": [...],      // User P&L data
-  "marketData": [...],    // Market information
-  "tokenTransfers": [...], // ERC1155 transfers
-  "orderFills": [...],    // Trading orders
-  "rewardClaims": [...]   // Liquidity rewards
-}
-```
-
-## 🎯 Dune Query Compatibility
-
-This Substreams package provides 100% data structure compatibility with:
-- [Dune Query #3366316](https://dune.com/queries/3366316)
-- All 13 data sources captured
-- Identical field names and types
-- Real-time streaming capability
-
-## 🚀 Next Steps
-
-1. **Stream Data**: Run the 7-day streaming script
-2. **Build Dashboard**: Use the generated data for web interface
-3. **Real-time Updates**: Set up continuous streaming
-4. **Scale**: Deploy for production use
-
-## 📚 Documentation
-
-- [Substreams Documentation](https://docs.substreams.dev/)
-- [Polygon Endpoints](https://docs.substreams.dev/reference-material/chains-and-endpoints)
-- [Dune Query Reference](https://dune.com/queries/3366316)
+<p align="center">
+  <a href="https://substreams.dev/packages/polymarket-pnl/v1.0.0">
+    <img src="https://img.shields.io/badge/substreams.dev-v1.0.0-blue" alt="Substreams"/>
+  </a>
+  <a href="https://polygon.technology/">
+    <img src="https://img.shields.io/badge/network-Polygon-8247E5" alt="Polygon"/>
+  </a>
+  <a href="https://www.postgresql.org/">
+    <img src="https://img.shields.io/badge/sink-PostgreSQL-336791" alt="PostgreSQL"/>
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
+  </a>
+</p>
 
 ---
 
-**Ready to build your Polymarket leaderboard!** 🎉
+## Overview
+
+Comprehensive Substreams package for tracking Polymarket P&L with **SQL sink support** for persistent state accumulation. Tracks all trading activity from both CTF Exchange and Neg Risk Exchange contracts.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Real P&L Tracking** | Realized & unrealized P&L with cost basis |
+| **SQL Sink** | PostgreSQL/Clickhouse for persistent state |
+| **Trader Analytics** | Volume, win rate, max drawdown |
+| **Market Stats** | Price, volume, trade counts per market |
+| **Whale Detection** | Large trade tracking with trader context |
+
+---
+
+## Quick Start
+
+### Stream Data (No Database)
+
+```bash
+# Install CLI
+brew install streamingfast/tap/substreams
+
+# Authenticate
+substreams auth
+
+# Stream order fills
+substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+  map_order_fills \
+  -e polygon.substreams.pinax.network:443 \
+  -s 65000000 -t +1000
+
+# Stream user P&L
+substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+  map_user_pnl \
+  -e polygon.substreams.pinax.network:443 \
+  -s 65000000 -t +1000
+```
+
+### Sink to PostgreSQL (Required for P&L)
+
+> **Important:** P&L requires accumulated state. Use the SQL sink for accurate calculations.
+
+```bash
+# Install sink
+brew install streamingfast/tap/substreams-sink-sql
+
+# Create database
+createdb polymarket_pnl
+
+# Setup schema
+substreams-sink-sql setup \
+  "psql://localhost:5432/polymarket_pnl?sslmode=disable" \
+  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg
+
+# Run sink (start from beginning for full history)
+substreams-sink-sql run \
+  "psql://localhost:5432/polymarket_pnl?sslmode=disable" \
+  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+  -e polygon.substreams.pinax.network:443
+```
+
+### Query Your Data
+
+```sql
+-- Top traders by P&L
+SELECT * FROM leaderboard_pnl LIMIT 20;
+
+-- Whale trades with trader stats
+SELECT * FROM whale_trades;
+
+-- User positions
+SELECT * FROM user_positions
+WHERE user_address = '0x...' AND quantity > 0;
+
+-- Daily stats
+SELECT date, total_volume, total_trades
+FROM daily_stats ORDER BY date DESC;
+```
+
+---
+
+## Architecture
+
+```
+                    Polygon Blockchain
+                           │
+                           ▼
+              ┌─────────────────────────┐
+              │     Firehose Blocks     │
+              └─────────────────────────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         ▼                 ▼                 ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ map_order_fills │ │map_token_transf │ │map_usdc_transf  │
+│  (CTF + NegRisk)│ │    (ERC1155)    │ │    (USDC)       │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+         │                 │                   │
+         └─────────────────┼───────────────────┘
+                           ▼
+              ┌─────────────────────────┐
+              │    STORES (State)       │
+              │  • user_positions       │
+              │  • user_cost_basis      │
+              │  • user_realized_pnl    │
+              │  • latest_prices        │
+              └─────────────────────────┘
+                           │
+                           ▼
+              ┌─────────────────────────┐
+              │      map_user_pnl       │
+              │   (Computed Analytics)  │
+              └─────────────────────────┘
+                           │
+                           ▼
+              ┌─────────────────────────┐
+              │         db_out          │
+              │      (SQL Sink)         │
+              └─────────────────────────┘
+                           │
+                           ▼
+              ┌─────────────────────────┐
+              │       PostgreSQL        │
+              └─────────────────────────┘
+```
+
+---
+
+## Modules
+
+### Layer 1: Event Extraction
+
+| Module | Description |
+|--------|-------------|
+| `map_order_fills` | OrderFilled events from CTF & NegRisk exchanges |
+| `map_token_transfers` | ERC1155 TransferSingle events |
+| `map_usdc_transfers` | USDC transfer events |
+
+### Layer 2: State Stores
+
+| Store | Key | Description |
+|-------|-----|-------------|
+| `store_user_positions` | `{user}:{token}` | Position quantities |
+| `store_user_cost_basis` | `{user}:{token}` | Total cost basis |
+| `store_user_realized_pnl` | `{user}` | Realized P&L |
+| `store_user_volume` | `{user}` | Trading volume |
+| `store_user_trade_count` | `{user}` | Trade count |
+| `store_market_volume` | `{token}` | Market volume |
+| `store_latest_prices` | `{token}` | Latest prices |
+
+### Layer 3: Analytics
+
+| Module | Description |
+|--------|-------------|
+| `map_user_pnl` | Real-time P&L calculations |
+| `map_market_stats` | Market-level statistics |
+
+### Layer 4: Sink
+
+| Module | Description |
+|--------|-------------|
+| `db_out` | Database changes for SQL sink |
+
+---
+
+## Database Schema
+
+### Tables
+
+| Table | Description |
+|-------|-------------|
+| `trades` | All order fills with price, amount, side |
+| `user_pnl` | Aggregated P&L per user |
+| `user_positions` | Current positions with cost basis |
+| `markets` | Market statistics |
+| `daily_stats` | Daily aggregates |
+
+### Views
+
+| View | Description |
+|------|-------------|
+| `leaderboard_pnl` | Top 1000 by P&L |
+| `leaderboard_volume` | Top 1000 by volume |
+| `whale_trades` | Trades >$10K |
+
+---
+
+## Contract Addresses
+
+| Contract | Address | Start Block |
+|----------|---------|-------------|
+| CTF Exchange | `0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e` | 33,605,403 |
+| NegRisk Exchange | `0xC5d563A36AE78145C45a50134d48A1215220f80a` | 50,505,492 |
+| Conditional Tokens | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | 4,023,686 |
+| USDC | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | 4,023,686 |
+
+---
+
+## Build from Source
+
+```bash
+# Clone
+git clone https://github.com/PaulieB14/Polymarket-P-L-Substreams
+cd Polymarket-P-L-Substreams
+
+# Build
+substreams build
+
+# Test
+substreams run substreams.yaml map_order_fills \
+  -e polygon.substreams.pinax.network:443 \
+  -s 65000000 -t +100
+
+# Package & publish
+substreams pack substreams.yaml -o polymarket-pnl-v1.0.0.spkg
+substreams publish polymarket-pnl-v1.0.0.spkg
+```
+
+---
+
+## Why SQL Sink?
+
+P&L calculation requires **state accumulation** over time:
+
+| Without Sink | With SQL Sink |
+|--------------|---------------|
+| No history | Full history persisted |
+| P&L = $0 | Accurate P&L |
+| Stateless | Tracks cost basis |
+| Demo only | Production ready |
+
+---
+
+## Related
+
+- [polymarket-orderbook-substreams](https://substreams.dev/packages/polymarket-orderbook-substreams/v0.2.0) - Order flow & trader leaderboards
+
+---
+
+## License
+
+MIT

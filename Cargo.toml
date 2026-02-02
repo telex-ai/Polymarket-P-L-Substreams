@@ -1,30 +1,40 @@
 [package]
-name = "polymarket_profitandloss"
-version = "0.0.1"
+name = "polymarket_pnl"
+version = "1.0.0"
 edition = "2021"
+description = "Polymarket Profit & Loss Substreams with SQL Sink Support"
+repository = "https://github.com/PaulieB14/Polymarket-P-L-Substreams"
 
 [lib]
 name = "substreams"
 crate-type = ["cdylib"]
 
 [dependencies]
-ethabi = "17"
-hex-literal = "0.3.4"
-num-bigint = "0.4"
-num-traits = "0.2.15"
-prost = "0.13.3"
-prost-types = "0.13.3"
-substreams = "0.6.0"
-substreams-ethereum = "0.10.2"
+# Substreams core
+substreams = "0.6"
+substreams-ethereum = "0.10"
 
-# Required so that ethabi > ethereum-types build correctly under wasm32-unknown-unknown
+# Database sink support
+substreams-database-change = "2.1"
+
+# Protobuf
+prost = "0.13"
+prost-types = "0.13"
+
+# Utilities
+ethabi = "17"
+hex-literal = "0.3"
+num-bigint = "0.4"
+num-traits = "0.2"
+
+# WASM compatibility
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2", features = ["custom"] }
 
 [build-dependencies]
+substreams-ethereum = "0.10"
 anyhow = "1"
-substreams-ethereum = "0.10.0"
-regex = "1.8"
+regex = "1"
 
 [profile.release]
 lto = true

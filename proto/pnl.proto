@@ -1,0 +1,252 @@
+syntax = "proto3";
+
+package pnl.v1;
+
+import "google/protobuf/timestamp.proto";
+
+//==============================================
+// ORDER FILLS (Layer 1 - Event Extraction)
+//==============================================
+
+message OrderFills {
+    repeated OrderFill fills = 1;
+    uint64 block_number = 2;
+    google.protobuf.Timestamp block_timestamp = 3;
+}
+
+message OrderFill {
+    string id = 1;                              // tx_hash-log_index
+    string tx_hash = 2;
+    uint32 log_index = 3;
+    uint64 block_number = 4;
+    google.protobuf.Timestamp timestamp = 5;
+
+    // Participants
+    string maker = 6;                           // Maker address (0x...)
+    string taker = 7;                           // Taker address (0x...)
+
+    // Trade details
+    string token_id = 8;                        // Outcome token ID
+    string side = 9;                            // "buy" or "sell"
+    string price = 10;                          // Execution price (decimal string)
+    string amount = 11;                         // USDC amount (decimal string, 6 decimals)
+    string fee = 12;                            // Fee amount
+
+    // Asset IDs from event
+    string maker_asset_id = 13;
+    string taker_asset_id = 14;
+    string maker_amount_filled = 15;
+    string taker_amount_filled = 16;
+
+    // Exchange
+    string exchange = 17;                       // "ctf" or "neg_risk"
+    string order_hash = 18;
+}
+
+//==============================================
+// TOKEN TRANSFERS (Layer 1)
+//==============================================
+
+message TokenTransfers {
+    repeated TokenTransfer transfers = 1;
+    uint64 block_number = 2;
+}
+
+message TokenTransfer {
+    string tx_hash = 1;
+    uint32 log_index = 2;
+    uint64 block_number = 3;
+    google.protobuf.Timestamp timestamp = 4;
+
+    string from_address = 5;
+    string to_address = 6;
+    string token_id = 7;
+    string amount = 8;                          // Raw amount (needs decimal conversion)
+
+    string contract_address = 9;
+}
+
+//==============================================
+// USDC TRANSFERS (Layer 1)
+//==============================================
+
+message UsdcTransfers {
+    repeated UsdcTransfer transfers = 1;
+    uint64 block_number = 2;
+}
+
+message UsdcTransfer {
+    string tx_hash = 1;
+    uint32 log_index = 2;
+    uint64 block_number = 3;
+    google.protobuf.Timestamp timestamp = 4;
+
+    string from_address = 5;
+    string to_address = 6;
+    string amount = 7;                          // USDC amount (6 decimals)
+}
+
+//==============================================
+// TOKEN PRICE (for stores)
+//==============================================
+
+message TokenPrice {
+    string token_id = 1;
+    string price = 2;                           // Latest price
+    uint64 block_number = 3;
+    google.protobuf.Timestamp timestamp = 4;
+    string volume_24h = 5;
+}
+
+//==============================================
+// USER P&L UPDATES (Layer 3 - Analytics)
+//==============================================
+
+message UserPnLUpdates {
+    repeated UserPnLUpdate updates = 1;
+    uint64 block_number = 2;
+}
+
+message UserPnLUpdate {
+    string user_address = 1;
+
+    // P&L
+    string realized_pnl = 2;                    // Total realized P&L
+    string unrealized_pnl = 3;                  // Current unrealized P&L
+    string total_pnl = 4;                       // realized + unrealized
+
+    // Stats
+    string total_volume = 5;
+    uint64 total_trades = 6;
+    string total_fees_paid = 7;
+
+    // Performance
+    uint32 win_count = 8;
+    uint32 loss_count = 9;
+    string win_rate = 10;                       // Percentage
+
+    // Risk
+    string max_drawdown = 11;
+    string largest_win = 12;
+    string largest_loss = 13;
+
+    // Timestamps
+    google.protobuf.Timestamp first_trade_at = 14;
+    google.protobuf.Timestamp last_trade_at = 15;
+
+    // Positions summary
+    repeated PositionSummary positions = 16;
+}
+
+message PositionSummary {
+    string token_id = 1;
+    string quantity = 2;
+    string avg_entry_price = 3;
+    string current_price = 4;
+    string unrealized_pnl = 5;
+    string cost_basis = 6;
+}
+
+//==============================================
+// MARKET STATS (Layer 3)
+//==============================================
+
+message MarketStats {
+    repeated MarketStat stats = 1;
+    uint64 block_number = 2;
+}
+
+message MarketStat {
+    string token_id = 1;
+    string condition_id = 2;
+    bool is_neg_risk = 3;
+
+    // Volume
+    string total_volume = 4;
+    string volume_24h = 5;
+    uint64 total_trades = 6;
+    uint64 trades_24h = 7;
+
+    // Price
+    string current_price = 8;
+    string price_24h_ago = 9;
+    string price_change_24h = 10;
+    string high_24h = 11;
+    string low_24h = 12;
+
+    // Participants
+    uint64 unique_traders = 13;
+
+    google.protobuf.Timestamp last_trade_at = 14;
+}
+
+//==============================================
+// GLOBAL STATS
+//==============================================
+
+message GlobalStats {
+    string total_volume = 1;
+    string volume_24h = 2;
+    uint64 total_trades = 3;
+    uint64 trades_24h = 4;
+    uint64 total_users = 5;
+    uint64 active_users_24h = 6;
+    string total_fees = 7;
+    uint64 block_number = 8;
+    google.protobuf.Timestamp timestamp = 9;
+}
+
+//==============================================
+// DUNE-COMPATIBLE OUTPUT (for backwards compat)
+//==============================================
+
+message DuneCompatiblePnL {
+    repeated DuneUserPnL user_pnls = 1;
+    uint64 block_number = 2;
+    google.protobuf.Timestamp block_timestamp = 3;
+}
+
+message DuneUserPnL {
+    string user_address = 1;
+    string total_realized_pnl = 2;
+    string total_unrealized_pnl = 3;
+    string total_volume = 4;
+    uint64 total_trades = 5;
+    uint32 winning_trades = 6;
+    uint32 losing_trades = 7;
+    string win_rate = 8;
+    google.protobuf.Timestamp last_activity = 9;
+
+    // Dune-specific fields
+    string net_usdc = 10;
+    string share_value = 11;
+    string trading_pnl = 12;
+    string liq_pnl = 13;
+    string total_pnl = 14;
+
+    // Risk metrics
+    RiskMetrics risk_metrics = 15;
+    string max_drawdown = 16;
+    string current_drawdown = 17;
+    string risk_score = 18;
+    string exposure_ratio = 19;
+    string concentration_risk = 20;
+    string volatility = 21;
+    string sharpe_ratio = 22;
+    string var95 = 23;
+    string expected_shortfall = 24;
+    string total_arbitrage_profit = 25;
+}
+
+message RiskMetrics {
+    string total_exposure = 1;
+    string max_position_size = 2;
+    string portfolio_concentration = 3;
+    string leverage_ratio = 4;
+    string margin_ratio = 5;
+    string liquidation_risk = 6;              // "low", "medium", "high"
+    string correlation_risk = 7;
+    string market_risk = 8;
+    string liquidity_risk = 9;
+    string operational_risk = 10;
+}

@@ -1,17 +1,21 @@
 specVersion: v0.1.0
 package:
-  name: polymarket-dune-pure
-  version: v0.4.1
-  description: "Polymarket Pure Dune Query Data - Exact match to Dune query with zero simulation data"
-  url: "https://github.com/PaulieB14/Polymarket-PnL-Substreams"
+  name: polymarket-pnl
+  version: v1.0.0
+  description: "Polymarket Profit & Loss Tracking - Real-time P&L with SQL sink support"
+  url: "https://github.com/PaulieB14/Polymarket-P-L-Substreams"
   image: "./polymarket-pnl-icon.png"
 
 imports:
-    ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.0.spkg
+  # SQL sink support
+  database_change: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v2.1.0/substreams-sink-database-changes-v2.1.0.spkg
+  sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
+  # Ethereum common utilities
+  ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.0.spkg
 
 protobuf:
   files:
-    - contract.proto
+    - pnl.proto
   importPaths:
     - ./proto
   excludePaths:
@@ -23,175 +27,199 @@ binaries:
     type: wasm/rust-v1
     file: ./target/wasm32-unknown-unknown/release/substreams.wasm
 
-modules:
-  # 1. CTF Exchange TokenRegistered Events (Dune: polymarket_polygon.CTFExchange_evt_TokenRegistered)
-  - name: map_ctf_exchange_token_registered
-    kind: map
-    initialBlock: 33605403
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.TokenRegisteredEvents
-
-  # 2. NegRisk CTF Exchange TokenRegistered Events (Dune: polymarket_polygon.NegRiskCtfExchange_evt_TokenRegistered)
-  - name: map_neg_risk_ctf_exchange_token_registered
-    kind: map
-    initialBlock: 50505492
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.NegRiskTokenRegisteredEvents
-
-  # 3. Fixed Product Market Maker Factory Creation (Dune: polymarketfactory_polygon.FixedProductMarketMakerFactory_evt_FixedProductMarketMakerCreation)
-  - name: map_fpmm_factory_creation
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0xa5ef39c3d3e10d0b270233af41cac69796b12966
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.FpmmFactoryEvents
-
-  # 4. CTF Exchange OrderFilled Events (Dune: polymarket_polygon.CTFExchange_evt_OrderFilled)
-  - name: map_ctf_exchange_order_filled
-    kind: map
-    initialBlock: 33605403
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.OrderFilledEvents
-
-  # 5. NegRisk CTF Exchange OrderFilled Events (Dune: polymarket_polygon.NegRiskCtfExchange_evt_OrderFilled)
-  - name: map_neg_risk_ctf_exchange_order_filled
-    kind: map
-    initialBlock: 50505492
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.OrderFilledEvents
-
-  # 6. ERC1155 TransferSingle Events (Dune: erc1155_polygon.evt_TransferSingle)
-  - name: map_erc1155_transfer_single
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_sig:0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.Erc1155TransferSingleEvents
-
-  # 7. ERC1155 TransferBatch Events (Dune: erc1155_polygon.evt_TransferBatch)
-  - name: map_erc1155_transfer_batch
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_sig:0x4a39dc06b4d0e7966e8548a714ca43c1363dc4f7197e0d4a342b5f78a2dfb6b0
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.Erc1155TransferBatchEvents
-
-  # 8. ERC20 Transfer Events (Dune: erc20_polygon.evt_Transfer)
-  - name: map_erc20_transfer
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_sig:0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.Erc20TransferEvents
-
-  # 9. UMA Merkle Distributor Events (Dune: polymarket_uma_merkle_distributor_polygon.MerkleDistributor_evt_Claimed)
-  - name: map_uma_merkle_distributor
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0x3a3bd7bb9528e159577f7c2e685cc81a765002e2
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.MerkleDistributorEvents
-
-  # 10. USDC Merkle Distributor Events (Dune: polymarket_usdc_merkle_distributor_polygon.MerkleDistributor_evt_Claimed)
-  - name: map_usdc_merkle_distributor
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0xc288480574783BD7615170660d71753378159c47
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.MerkleDistributorEvents
-
-  # 11. CTF Events for P&L Tracking (Dune: references CTF contract)
-  - name: map_ctf_events
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0x4d97dcd97ec945f40cf65f87097ace5ea0476045
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.CtfEvents
-
-  # 12. USDC Collateral Token Events (Dune: erc20_polygon.evt_Transfer where contract_address = 0x2791bca1f2de4661ed88a30c99a7a9449aa84174)
-  - name: map_usdc_events
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: evt_addr:0x2791bca1f2de4661ed88a30c99a7a9449aa84174
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.UsdcEvents
-
-  # 13. Pure Dune Query P&L Data (NO SIMULATION - ONLY REAL BLOCKCHAIN EVENTS)
-  - name: map_pure_dune_pnl
-    kind: map
-    initialBlock: 4023686
-    blockFilter:
-      module: ethcommon:index_events
-      query:
-        string: "evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e OR evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a OR evt_addr:0xa5ef39c3d3e10d0b270233af41cac69796b12966 OR evt_addr:0x4d97dcd97ec945f40cf65f87097ace5ea0476045 OR evt_addr:0x2791bca1f2de4661ed88a30c99a7a9449aa84174 OR evt_addr:0x3a3bd7bb9528e159577f7c2e685cc81a765002e2 OR evt_addr:0xc288480574783BD7615170660d71753378159c47 OR evt_sig:0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62 OR evt_sig:0x4a39dc06b4d0e7966e8548a714ca43c1363dc4f7197e0d4a342b5f78a2dfb6b0 OR evt_sig:0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:contract.v1.PureDunePnL
-
-
 network: polygon
+
+params:
+  # Minimum trade size to track (USDC with 6 decimals)
+  db_out: "min_trade_size=1000000"
+
+modules:
+  #############################################
+  # LAYER 1: Event Extraction (Map Modules)
+  #############################################
+
+  - name: map_order_fills
+    kind: map
+    doc: |
+      Extracts OrderFilled events from both CTF Exchange and NegRisk Exchange.
+      This is the primary source of trading activity.
+    initialBlock: 33605403
+    blockFilter:
+      module: ethcommon:index_events
+      query:
+        string: "(evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e OR evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a)"
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:pnl.v1.OrderFills
+
+  - name: map_token_transfers
+    kind: map
+    doc: |
+      Extracts ERC1155 TransferSingle events for position tracking.
+    initialBlock: 4023686
+    blockFilter:
+      module: ethcommon:index_events
+      query:
+        string: "evt_sig:0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62"
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:pnl.v1.TokenTransfers
+
+  - name: map_usdc_transfers
+    kind: map
+    doc: |
+      Extracts USDC (ERC20) transfer events for collateral tracking.
+    initialBlock: 4023686
+    blockFilter:
+      module: ethcommon:index_events
+      query:
+        string: "evt_addr:0x2791bca1f2de4661ed88a30c99a7a9449aa84174"
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:pnl.v1.UsdcTransfers
+
+  #############################################
+  # LAYER 2: State Stores (Accumulation)
+  #############################################
+
+  - name: store_user_positions
+    kind: store
+    doc: |
+      Accumulates user positions per token. Tracks quantity held.
+      Key: {user_address}:{token_id}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_token_transfers
+
+  - name: store_user_cost_basis
+    kind: store
+    doc: |
+      Tracks total cost basis per user per token for average price calculation.
+      Key: {user_address}:{token_id}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_order_fills
+
+  - name: store_user_realized_pnl
+    kind: store
+    doc: |
+      Accumulates realized P&L when users sell positions.
+      Key: {user_address}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_order_fills
+
+  - name: store_user_volume
+    kind: store
+    doc: |
+      Tracks total trading volume per user.
+      Key: {user_address}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_order_fills
+
+  - name: store_user_trade_count
+    kind: store
+    doc: |
+      Tracks number of trades per user.
+      Key: {user_address}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: int64
+    inputs:
+      - map: map_order_fills
+
+  - name: store_market_volume
+    kind: store
+    doc: |
+      Tracks total volume per market (token_id).
+      Key: {token_id}
+    initialBlock: 33605403
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_order_fills
+
+  - name: store_latest_prices
+    kind: store
+    doc: |
+      Stores latest price per token for unrealized P&L calculation.
+      Key: {token_id}
+    initialBlock: 33605403
+    updatePolicy: set
+    valueType: proto:pnl.v1.TokenPrice
+    inputs:
+      - map: map_order_fills
+
+  #############################################
+  # LAYER 3: Computed Analytics
+  #############################################
+
+  - name: map_user_pnl
+    kind: map
+    doc: |
+      Computes real-time P&L for users based on their positions and trades.
+      Outputs user P&L updates when positions change.
+    initialBlock: 33605403
+    inputs:
+      - map: map_order_fills
+      - store: store_user_positions
+        mode: deltas
+      - store: store_user_cost_basis
+        mode: get
+      - store: store_user_realized_pnl
+        mode: get
+      - store: store_latest_prices
+        mode: get
+    output:
+      type: proto:pnl.v1.UserPnLUpdates
+
+  - name: map_market_stats
+    kind: map
+    doc: |
+      Computes market-level statistics (volume, trades, prices).
+    initialBlock: 33605403
+    inputs:
+      - map: map_order_fills
+      - store: store_market_volume
+        mode: deltas
+    output:
+      type: proto:pnl.v1.MarketStats
+
+  #############################################
+  # LAYER 4: SQL Sink Output
+  #############################################
+
+  - name: db_out
+    kind: map
+    doc: |
+      Outputs database changes for SQL sink (PostgreSQL/Clickhouse).
+      Creates/updates tables: trades, user_pnl, user_positions, markets
+    initialBlock: 33605403
+    inputs:
+      - params: string
+      - map: map_order_fills
+      - map: map_user_pnl
+      - map: map_market_stats
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+
+sink:
+  module: db_out
+  type: sf.substreams.sink.sql.v1.Service
+  config:
+    schema: "./schema.sql"
+    engine: postgres
+    postgraphile_frontend:
+      enabled: true
