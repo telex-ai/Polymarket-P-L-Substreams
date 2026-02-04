@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: polymarket-pnl
-  version: v1.0.0
+  version: v1.0.1
   description: "Polymarket Profit & Loss Tracking - Real-time P&L with SQL sink support"
   url: "https://github.com/PaulieB14/Polymarket-P-L-Substreams"
   image: "./polymarket-pnl-icon.png"

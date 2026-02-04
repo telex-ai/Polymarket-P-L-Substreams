@@ -1,6 +1,6 @@
 [package]
 name = "polymarket_pnl"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Polymarket Profit & Loss Substreams with SQL Sink Support"
 repository = "https://github.com/PaulieB14/Polymarket-P-L-Substreams"

@@ -23,6 +23,40 @@ use substreams_ethereum::pb::eth::v2 as eth;
 use substreams::scalar::BigInt;
 use std::str::FromStr;
 
+/// Convert Unix timestamp to PostgreSQL TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
+fn unix_to_timestamp(secs: i64) -> String {
+    let days_since_epoch = secs / 86400;
+    let time_of_day = secs % 86400;
+    let hours = time_of_day / 3600;
+    let minutes = (time_of_day % 3600) / 60;
+    let seconds = time_of_day % 60;
+
+    let mut days = days_since_epoch;
+    let mut year = 1970i64;
+    loop {
+        let days_in_year = if (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) { 366 } else { 365 };
+        if days < days_in_year { break; }
+        days -= days_in_year;
+        year += 1;
+    }
+
+    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let days_in_months: [i64; 12] = if leap {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+
+    let mut month = 1;
+    for &dim in &days_in_months {
+        if days < dim { break; }
+        days -= dim;
+        month += 1;
+    }
+
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, days + 1, hours, minutes, seconds)
+}
+
 substreams_ethereum::init!();
 
 // Contract addresses
@@ -447,8 +481,8 @@ fn db_out(
         let timestamp = fill
             .timestamp
             .as_ref()
-            .map(|t| t.seconds.to_string())
-            .unwrap_or_default();
+            .map(|t| unix_to_timestamp(t.seconds))
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
 
         tables
             .create_row("trades", &fill.id)
