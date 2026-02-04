@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://substreams.dev/packages/polymarket-pnl/v1.0.0">
-    <img src="https://img.shields.io/badge/substreams.dev-v1.0.0-blue" alt="Substreams"/>
+  <a href="https://substreams.dev/packages/polymarket-pnl/v1.0.1">
+    <img src="https://img.shields.io/badge/substreams.dev-v1.0.1-blue" alt="Substreams"/>
   </a>
   <a href="https://polygon.technology/">
     <img src="https://img.shields.io/badge/network-Polygon-8247E5" alt="Polygon"/>
@@ -53,13 +53,13 @@ brew install streamingfast/tap/substreams
 substreams auth
 
 # Stream order fills
-substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.1.spkg \
   map_order_fills \
   -e polygon.substreams.pinax.network:443 \
   -s 65000000 -t +1000
 
 # Stream user P&L
-substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-pnl-v1.0.1.spkg \
   map_user_pnl \
   -e polygon.substreams.pinax.network:443 \
   -s 65000000 -t +1000
@@ -79,12 +79,12 @@ createdb polymarket_pnl
 # Setup schema
 substreams-sink-sql setup \
   "psql://localhost:5432/polymarket_pnl?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg
+  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.1.spkg
 
 # Run sink (start from beginning for full history)
 substreams-sink-sql run \
   "psql://localhost:5432/polymarket_pnl?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.0.spkg \
+  https://spkg.io/PaulieB14/polymarket-pnl-v1.0.1.spkg \
   -e polygon.substreams.pinax.network:443
 ```
 
@@ -241,8 +241,8 @@ substreams run substreams.yaml map_order_fills \
   -s 65000000 -t +100
 
 # Package & publish
-substreams pack substreams.yaml -o polymarket-pnl-v1.0.0.spkg
-substreams publish polymarket-pnl-v1.0.0.spkg
+substreams pack substreams.yaml -o polymarket-pnl-v1.0.1.spkg
+substreams publish polymarket-pnl-v1.0.1.spkg
 ```
 
 ---
