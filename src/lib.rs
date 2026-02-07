@@ -598,6 +598,9 @@ fn db_out(
     positions_store: StoreGetBigInt,
     cost_basis_store: StoreGetBigInt,
     prices_store: StoreGetProto<pnl::TokenPrice>,
+    realized_pnl_deltas: Deltas<DeltaBigInt>,
+    volume_deltas: Deltas<DeltaBigInt>,
+    trade_count_deltas: Deltas<DeltaInt64>,
 ) -> Result<DatabaseChanges, substreams::errors::Error> {
     let mut tables = Tables::new();
 
@@ -609,7 +612,7 @@ fn db_out(
         .unwrap_or(0);
 
     // Insert trades
-    for fill in fills.fills {
+    for fill in &fills.fills {
         let amount: i64 = fill.amount.parse().unwrap_or(0);
 
         // Skip small trades if configured
@@ -640,19 +643,182 @@ fn db_out(
             .set("order_hash", &fill.order_hash);
     }
 
-    // Upsert user P&L
-    for update in user_pnl.updates {
-        tables
-            .update_row("user_pnl", &update.user_address)
-            .set("realized_pnl", &update.realized_pnl)
-            .set("unrealized_pnl", &update.unrealized_pnl)
-            .set("total_pnl", &update.total_pnl)
-            .set("total_volume", &update.total_volume)
-            .set("total_trades", update.total_trades as i64)
-            .set("total_fees_paid", &update.total_fees_paid)
-            .set("win_count", update.win_count as i64)
-            .set("loss_count", update.loss_count as i64)
-            .set("win_rate", &update.win_rate);
+    // Upsert user P&L using delta operations for efficiency
+    // Collect all unique users from deltas and updates
+    let mut affected_users: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Track users from realized_pnl deltas
+    for delta in &realized_pnl_deltas.deltas {
+        affected_users.insert(delta.key.clone());
+    }
+
+    // Track users from volume deltas
+    for delta in &volume_deltas.deltas {
+        affected_users.insert(delta.key.clone());
+    }
+
+    // Track users from trade_count deltas
+    for delta in &trade_count_deltas.deltas {
+        affected_users.insert(delta.key.clone());
+    }
+
+    // Track users from map_user_pnl updates (for fields that need full values)
+    for update in &user_pnl.updates {
+        affected_users.insert(update.user_address.clone());
+    }
+
+    // Get timestamp for first_trade_at and last_trade_at
+    let timestamp = fills.block_timestamp
+        .as_ref()
+        .map(|t| unix_to_timestamp(t.seconds))
+        .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+
+    // Apply delta operations for each affected user
+    for user in affected_users {
+        let mut row = tables.update_row("user_pnl", &user);
+
+        // Use delta operations for incremental fields
+        // realized_pnl: use .add() to send only the change
+        if let Some(delta) = realized_pnl_deltas.deltas.iter().find(|d| d.key == user) {
+            // Calculate delta: new_value - old_value
+            let pnl_delta = &delta.new_value - &delta.old_value;
+            // Convert from 18-decimal to 6-decimal (USDC format) for database
+            let scale = BigInt::from_str("1000000000000").unwrap(); // 10^12
+            let pnl_delta_usdc = pnl_delta / scale;
+            // Parse as i64 for .add() method (database column is NUMERIC)
+            if let Ok(pnl_i64) = pnl_delta_usdc.to_string().parse::<i64>() {
+                row = row.add("realized_pnl", pnl_i64);
+            }
+        }
+
+        // unrealized_pnl: use .set() (full replacement, changes frequently)
+        if let Some(update) = user_pnl.updates.iter().find(|u| u.user_address == user) {
+            row = row.set("unrealized_pnl", &update.unrealized_pnl);
+            row = row.set("total_pnl", &update.total_pnl);
+        }
+
+        // total_volume: use .add() to send only the change
+        if let Some(delta) = volume_deltas.deltas.iter().find(|d| d.key == user) {
+            // Calculate delta: new_value - old_value
+            let volume_delta = &delta.new_value - &delta.old_value;
+            // Convert from 18-decimal to 6-decimal (USDC format) for database
+            let scale = BigInt::from_str("1000000000000").unwrap(); // 10^12
+            let volume_delta_usdc = volume_delta / scale;
+            // Parse as i64 for .add() method
+            if let Ok(volume_i64) = volume_delta_usdc.to_string().parse::<i64>() {
+                row = row.add("total_volume", volume_i64);
+            }
+        }
+
+        // total_trades: use .add() with the delta count
+        if let Some(delta) = trade_count_deltas.deltas.iter().find(|d| d.key == user) {
+            // For Int64 stores, ordinal contains the delta value
+            row = row.add("total_trades", delta.ordinal as i64);
+        }
+
+        // total_fees_paid: calculate from fills in this block and use .add()
+        let fees_delta = calculate_user_fees(&fills, &user);
+        if fees_delta > BigInt::from(0) {
+            // Fees are already in USDC format (6 decimals)
+            if let Ok(fees_i64) = fees_delta.to_string().parse::<i64>() {
+                row = row.add("total_fees_paid", fees_i64);
+            }
+        }
+
+        // first_trade_at: use .set_if_null() (only set once, first-write-wins)
+        // Only set if there are any trades for this user in this block
+        let has_trade_this_block = fills.fills.iter().any(|f| {
+            (f.maker.eq_ignore_ascii_case(&user) || f.taker.eq_ignore_ascii_case(&user))
+                && !is_excluded_address(&f.maker) && !is_excluded_address(&f.taker)
+        });
+        if has_trade_this_block {
+            row = row.set_if_null("first_trade_at", &timestamp);
+        }
+
+        // last_trade_at: use .set() (always update to latest)
+        if has_trade_this_block {
+            row = row.set("last_trade_at", &timestamp);
+        }
+
+        // For placeholder fields (not yet implemented), set defaults on first write
+        row = row.set_if_null("win_count", 0i64);
+        row = row.set_if_null("loss_count", 0i64);
+        row = row.set_if_null("win_rate", "0");
+    }
+
+    // Upsert user positions
+    // We use positions_deltas to know which positions changed, then get full data from stores
+    for delta in &positions_deltas.deltas {
+        let parts: Vec<&str> = delta.key.split(':').collect();
+        if parts.len() == 2 {
+            let user_address = parts[0];
+            let token_id = parts[1];
+            let position_id = delta.key.clone();
+
+            // Get current position data
+            let quantity = positions_store
+                .get_last(&delta.key)
+                .unwrap_or_else(|| BigInt::from(0));
+
+            let cost_basis = cost_basis_store
+                .get_last(&delta.key)
+                .unwrap_or_else(|| BigInt::from(0));
+
+            // Calculate average entry price (cost_basis is in USDC 6-decimals, scale to 18 decimals)
+            let avg_entry_price = if !quantity.is_zero() {
+                // Cost basis (6 decimals) / quantity (token units) = price in USDC
+                // To get 18-decimal price format, we multiply by 10^12
+                let scale = BigInt::from_str("1000000000000").unwrap();
+                let scaled_price = (&cost_basis * &scale) / &quantity;
+                format_price_decimal(&scaled_price, &BigInt::from_str("1000000000000000000").unwrap())
+            } else {
+                "0.000000000000000000".to_string()
+            };
+
+            // Get current price
+            let current_price = prices_store
+                .get_last(token_id)
+                .map(|p| p.price.clone())
+                .unwrap_or_else(|| "0.000000000000000000".to_string());
+
+            // Calculate current value (quantity * price, converted to USDC format)
+            let current_value = if !quantity.is_zero() {
+                let price_bigint = parse_price_decimal(&current_price);
+                let value_18_dec = price_bigint * &quantity;
+                format_usdc_from_bigint(&value_18_dec)
+            } else {
+                "0".to_string()
+            };
+
+            // Calculate unrealized P&L: (current_price - avg_entry_price) * quantity
+            // Then convert from 18 decimals to USDC 6 decimals
+            let avg_entry_bigint = parse_price_decimal(&avg_entry_price);
+            let current_price_bigint = parse_price_decimal(&current_price);
+            let unrealized_pnl = if !quantity.is_zero() {
+                let pnl_18_dec = (current_price_bigint - avg_entry_bigint) * &quantity;
+                format_usdc_from_bigint(&pnl_18_dec)
+            } else {
+                "0".to_string()
+            };
+
+            // Get timestamp from block
+            let timestamp = fills.block_timestamp
+                .as_ref()
+                .map(|t| unix_to_timestamp(t.seconds))
+                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+
+            tables
+                .update_row("user_positions", &position_id)
+                .set("user_address", user_address)
+                .set("token_id", token_id)
+                .set("quantity", quantity.to_string())
+                .set("avg_entry_price", avg_entry_price)
+                .set("total_cost_basis", cost_basis.to_string())
+                .set("unrealized_pnl", unrealized_pnl)
+                .set("current_price", current_price)
+                .set("current_value", current_value)
+                .set("last_updated_at", &timestamp);
+        }
     }
 
     // Upsert market stats

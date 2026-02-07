@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "polymarket_pnl"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "ethabi 18.0.0",

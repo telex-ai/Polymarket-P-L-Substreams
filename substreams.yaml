@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: polymarket-pnl
-  version: v1.2.0
+  version: v2.0.0
   description: "Polymarket Profit & Loss Tracking - Real-time P&L with SQL sink support"
   url: "https://github.com/PaulieB14/Polymarket-P-L-Substreams"
   image: "./polymarket-pnl-icon.png"
@@ -227,6 +227,7 @@ modules:
       Outputs database changes for SQL sink (PostgreSQL/Clickhouse).
       Creates/updates tables: trades, user_pnl, user_positions, markets
       Start from Conditional Tokens deployment (4023686) for complete history.
+      Uses delta operations for efficient incremental updates.
     initialBlock: 4023686
     inputs:
       - params: string
@@ -239,6 +240,12 @@ modules:
         mode: get
       - store: store_latest_prices
         mode: get
+      - store: store_user_realized_pnl
+        mode: deltas
+      - store: store_user_volume
+        mode: deltas
+      - store: store_user_trade_count
+        mode: deltas
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 
