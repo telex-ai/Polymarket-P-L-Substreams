@@ -362,6 +362,14 @@ fn parse_price_decimal(price_str: &str) -> BigInt {
     BigInt::from_str(&padded).unwrap_or_default()
 }
 
+/// Helper to format BigInt (18 decimals) to USDC string (6 decimals)
+fn format_usdc_from_bigint(value: &BigInt) -> String {
+    // Convert from 18 decimals to 6 decimals (USDC)
+    let scale = BigInt::from_str("1000000000000").unwrap(); // 10^12
+    let scaled = value / &scale;
+    scaled.to_string()
+}
+
 /// Store user volume: key = {user}, value = volume delta
 #[substreams::handlers::store]
 fn store_user_volume(fills: pnl::OrderFills, store: StoreAddBigInt) {
@@ -419,14 +427,29 @@ fn store_latest_prices(fills: pnl::OrderFills, store: StoreSetProto<pnl::TokenPr
 // LAYER 3: Analytics
 //==============================================
 
+/// Calculate total fees paid by a user from order fills
+fn calculate_user_fees(fills: &pnl::OrderFills, user: &str) -> BigInt {
+    let mut total_fees = BigInt::from(0);
+    for fill in &fills.fills {
+        if fill.taker.eq_ignore_ascii_case(user) || fill.maker.eq_ignore_ascii_case(user) {
+            let fee = BigInt::from_str(&fill.fee).unwrap_or_default();
+            total_fees = total_fees + fee;
+        }
+    }
+    total_fees
+}
+
 /// Compute user P&L updates
 #[substreams::handlers::map]
 fn map_user_pnl(
     fills: pnl::OrderFills,
     positions_deltas: Deltas<DeltaBigInt>,
-    _cost_basis_store: StoreGetBigInt,
+    positions_store: StoreGetBigInt,
+    cost_basis_store: StoreGetBigInt,
     realized_pnl_store: StoreGetBigInt,
-    _prices_store: StoreGetProto<pnl::TokenPrice>,
+    prices_store: StoreGetProto<pnl::TokenPrice>,
+    volume_store: StoreGetBigInt,
+    trade_count_store: StoreGetInt64,
 ) -> Result<pnl::UserPnLUpdates, substreams::errors::Error> {
     let mut updates = pnl::UserPnLUpdates {
         block_number: fills.block_number,
@@ -436,7 +459,7 @@ fn map_user_pnl(
     // Track users with position changes
     let mut affected_users: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    for delta in positions_deltas.deltas {
+    for delta in &positions_deltas.deltas {
         let parts: Vec<&str> = delta.key.split(':').collect();
         if parts.len() == 2 {
             affected_users.insert(parts[0].to_string());
@@ -460,14 +483,69 @@ fn map_user_pnl(
             .map(|v| v.to_string())
             .unwrap_or_else(|| "0".to_string());
 
+        // Calculate unrealized P&L: sum((current_price - avg_entry_price) * quantity)
+        // for all open positions. We iterate through the positions_deltas to know which
+        // positions exist for this user, then use positions_store to get current values.
+        let mut unrealized_pnl_total = BigInt::from(0);
+
+        for delta in &positions_deltas.deltas {
+            let parts: Vec<&str> = delta.key.split(':').collect();
+            if parts.len() == 2 && parts[0] == user {
+                let token_id = parts[1];
+
+                // Get current position quantity from positions_store
+                let quantity = positions_store
+                    .get_last(&delta.key)
+                    .unwrap_or_else(|| BigInt::from(0));
+
+                // Only calculate unrealized P&L for open positions (quantity > 0)
+                if quantity > BigInt::from(0) {
+                    // Get cost basis for this position
+                    let cost_basis = cost_basis_store
+                        .get_last(&delta.key)
+                        .unwrap_or_else(|| BigInt::from(0));
+
+                    // Calculate average entry price
+                    let avg_entry_price = if !quantity.is_zero() {
+                        &cost_basis / &quantity
+                    } else {
+                        BigInt::from(0)
+                    };
+
+                    // Get current price from prices_store
+                    if let Some(token_price) = prices_store.get_last(token_id) {
+                        let current_price = parse_price_decimal(&token_price.price);
+
+                        // Calculate unrealized P&L: (current_price - avg_entry_price) * quantity
+                        let position_pnl = (&current_price - &avg_entry_price) * &quantity;
+                        unrealized_pnl_total = unrealized_pnl_total + position_pnl;
+                    }
+                }
+            }
+        }
+
+        let total_volume = volume_store
+            .get_last(&user)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "0".to_string());
+
+        let total_trades = trade_count_store
+            .get_last(&user)
+            .unwrap_or(0) as u64;
+
+        let total_fees = calculate_user_fees(&fills, &user);
+
+        let realized_bigint = BigInt::from_str(&realized).unwrap_or_default();
+        let total_pnl = &realized_bigint + &unrealized_pnl_total;
+
         updates.updates.push(pnl::UserPnLUpdate {
             user_address: user.clone(),
-            realized_pnl: realized.clone(),
-            unrealized_pnl: "0".to_string(), // Would need current positions × prices
-            total_pnl: realized,
-            total_volume: "0".to_string(),
-            total_trades: 0,
-            total_fees_paid: "0".to_string(),
+            realized_pnl: realized,
+            unrealized_pnl: unrealized_pnl_total.to_string(),
+            total_pnl: total_pnl.to_string(),
+            total_volume,
+            total_trades,
+            total_fees_paid: total_fees.to_string(),
             win_count: 0,
             loss_count: 0,
             win_rate: "0".to_string(),
@@ -516,6 +594,10 @@ fn db_out(
     fills: pnl::OrderFills,
     user_pnl: pnl::UserPnLUpdates,
     market_stats: pnl::MarketStats,
+    positions_deltas: Deltas<DeltaBigInt>,
+    positions_store: StoreGetBigInt,
+    cost_basis_store: StoreGetBigInt,
+    prices_store: StoreGetProto<pnl::TokenPrice>,
 ) -> Result<DatabaseChanges, substreams::errors::Error> {
     let mut tables = Tables::new();
 
