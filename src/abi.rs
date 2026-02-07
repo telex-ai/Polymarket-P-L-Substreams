@@ -40,9 +40,9 @@ const ORDER_FILLED_SIG: [u8; 32] = [
 
 /// Decode OrderFilled event from log
 pub fn decode_order_filled(log: &Log) -> Option<OrderFilledEvent> {
-    // Check event signature
-    if log.topics.is_empty() {
-        return None;
+    // Validate topic count and signature FIRST
+    if log.topics.is_empty() || log.topics[0] != ORDER_FILLED_SIG {
+        return None; // Wrong event type - reject immediately
     }
 
     // OrderFilled events have specific structure
@@ -81,9 +81,20 @@ pub fn decode_order_filled(log: &Log) -> Option<OrderFilledEvent> {
     })
 }
 
+/// ERC1155 TransferSingle event signature
+const TRANSFER_SINGLE_SIG: [u8; 32] = [
+    0xc3, 0xd5, 0x81, 0x68, 0xc5, 0xae, 0x73, 0x97, 0x73, 0x1d, 0x06, 0x3d,
+    0x5b, 0xbf, 0x3d, 0x65, 0x78, 0x54, 0x42, 0x73, 0x43, 0xf4, 0xc0, 0x83,
+    0x24, 0x0f, 0x7a, 0xac, 0xaa, 0x2d, 0x0f, 0x62,
+];
+
 /// Decode ERC1155 TransferSingle event
 /// Event: TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
 pub fn decode_erc1155_transfer_single(log: &Log) -> Option<TransferSingleEvent> {
+    // Validate topic count and signature FIRST
+    if log.topics.is_empty() || log.topics[0] != TRANSFER_SINGLE_SIG {
+        return None; // Wrong event type - reject immediately
+    }
     if log.topics.len() < 4 || log.data.len() < 64 {
         return None;
     }
@@ -104,9 +115,20 @@ pub fn decode_erc1155_transfer_single(log: &Log) -> Option<TransferSingleEvent> 
     })
 }
 
+/// ERC20 Transfer event signature
+const TRANSFER_SIG: [u8; 32] = [
+    0xdd, 0xf2, 0x52, 0xad, 0x1b, 0xe2, 0xc8, 0x9b, 0x69, 0xc2, 0xb0, 0x68,
+    0xfc, 0x37, 0x8d, 0xaa, 0x95, 0x2b, 0xa7, 0xf1, 0x63, 0xc4, 0xa1, 0x16,
+    0x28, 0xf5, 0x5a, 0x4d, 0xf5, 0x23, 0xb3, 0xef,
+];
+
 /// Decode ERC20 Transfer event
 /// Event: Transfer(address indexed from, address indexed to, uint256 value)
 pub fn decode_erc20_transfer(log: &Log) -> Option<TransferEvent> {
+    // Validate topic count and signature FIRST
+    if log.topics.is_empty() || log.topics[0] != TRANSFER_SIG {
+        return None; // Wrong event type - reject immediately
+    }
     if log.topics.len() < 3 || log.data.len() < 32 {
         return None;
     }

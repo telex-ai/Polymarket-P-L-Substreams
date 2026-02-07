@@ -41,6 +41,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bigdecimal"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d6867f1565b3aad85681f1015055b087fcfd840d6aeee6eee7f2da317603695"
+dependencies = [
+ "autocfg",
+ "libm",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -174,7 +187,24 @@ version = "17.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4966fba78396ff92db3b817ee71143eccd98acf0f876b8d600e585a670c5d1b"
 dependencies = [
- "ethereum-types",
+ "ethereum-types 0.13.1",
+ "hex",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "uint",
+]
+
+[[package]]
+name = "ethabi"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7413c5f74cc903ea37386a8965a936cbeb334bd270862fdece542c1b2dcbc898"
+dependencies = [
+ "ethereum-types 0.14.1",
  "hex",
  "once_cell",
  "regex",
@@ -192,9 +222,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11da94e443c60508eb62cf256243a64da87304c2802ac2528847f79d750007ef"
 dependencies = [
  "crunchy",
- "fixed-hash",
+ "fixed-hash 0.7.0",
  "impl-rlp",
- "impl-serde",
+ "impl-serde 0.3.2",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "ethbloom"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c22d4b5885b6aa2fe5e8b9329fb8d232bf739e434e6b87347c63bdd00c120f60"
+dependencies = [
+ "crunchy",
+ "fixed-hash 0.8.0",
+ "impl-rlp",
+ "impl-serde 0.4.0",
  "tiny-keccak",
 ]
 
@@ -204,11 +247,25 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2827b94c556145446fcce834ca86b7abf0c39a805883fe20e72c5bfdb5a0dc6"
 dependencies = [
- "ethbloom",
- "fixed-hash",
+ "ethbloom 0.12.1",
+ "fixed-hash 0.7.0",
  "impl-rlp",
- "impl-serde",
- "primitive-types",
+ "impl-serde 0.3.2",
+ "primitive-types 0.11.1",
+ "uint",
+]
+
+[[package]]
+name = "ethereum-types"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d215cbf040552efcbe99a38372fe80ab9d00268e20012b79fcd0f073edd8ee"
+dependencies = [
+ "ethbloom 0.13.0",
+ "fixed-hash 0.8.0",
+ "impl-rlp",
+ "impl-serde 0.4.0",
+ "primitive-types 0.12.2",
  "uint",
 ]
 
@@ -223,6 +280,18 @@ name = "fixed-hash"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
+dependencies = [
+ "byteorder",
+ "rand",
+ "rustc-hex",
+ "static_assertions",
+]
+
+[[package]]
+name = "fixed-hash"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
  "byteorder",
  "rand",
@@ -348,6 +417,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "impl-serde"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc88fc67028ae3db0c853baa36269d398d5f45b6982f95549ff5def78c935cd"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "impl-trait-for-tuples"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -412,6 +490,12 @@ name = "libc"
 version = "0.2.180"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
+
+[[package]]
+name = "libm"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "linux-raw-sys"
@@ -585,10 +669,10 @@ dependencies = [
 
 [[package]]
 name = "polymarket_pnl"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
- "ethabi",
+ "ethabi 18.0.0",
  "getrandom 0.2.17",
  "hex-literal",
  "num-bigint",
@@ -596,7 +680,7 @@ dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
  "regex",
- "substreams",
+ "substreams 0.7.6",
  "substreams-database-change",
  "substreams-ethereum",
 ]
@@ -636,10 +720,23 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e28720988bff275df1f51b171e1b2a18c30d194c4d2b61defdacecd625a5d94a"
 dependencies = [
- "fixed-hash",
+ "fixed-hash 0.7.0",
  "impl-codec",
  "impl-rlp",
- "impl-serde",
+ "impl-serde 0.3.2",
+ "uint",
+]
+
+[[package]]
+name = "primitive-types"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b34d9fd68ae0b74a41b21c03c2f62847aa0ffea044eee893b4c140b37e244e2"
+dependencies = [
+ "fixed-hash 0.8.0",
+ "impl-codec",
+ "impl-rlp",
+ "impl-serde 0.4.0",
  "uint",
 ]
 
@@ -972,7 +1069,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e02e7abbbcbd809708634207bbe87f904db8696f5c148c6dd46cee5d7713d25"
 dependencies = [
  "anyhow",
- "bigdecimal",
+ "bigdecimal 0.3.1",
  "hex",
  "hex-literal",
  "num-bigint",
@@ -984,19 +1081,42 @@ dependencies = [
  "prost 0.13.5",
  "prost-build 0.13.5",
  "prost-types 0.13.5",
- "substreams-macro",
+ "substreams-macro 0.6.4",
+ "thiserror",
+]
+
+[[package]]
+name = "substreams"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da9743dec732b3f4c2fdc1e727b9ca39d0547a0f2bd85d35644232a58d578aa9"
+dependencies = [
+ "anyhow",
+ "bigdecimal 0.4.10",
+ "hex",
+ "hex-literal",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "pad",
+ "pest",
+ "pest_derive",
+ "prost 0.13.5",
+ "prost-build 0.13.5",
+ "prost-types 0.13.5",
+ "substreams-macro 0.7.6",
  "thiserror",
 ]
 
 [[package]]
 name = "substreams-database-change"
-version = "2.1.2"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a93bcd1a0cda40746b8c3a3d64b0945986722b2ca3b686595cfbb3f295246d7d"
+checksum = "895bc4163afc8b3599aba8416500ac5ea392df2f0f09b9e955332b3779cf80a9"
 dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
- "substreams",
+ "substreams 0.7.6",
 ]
 
 [[package]]
@@ -1007,7 +1127,7 @@ checksum = "a2fc683b368e317c60064267dbddc5d8ce290ef00170eb74df8cdde7cda939f3"
 dependencies = [
  "getrandom 0.2.17",
  "num-bigint",
- "substreams",
+ "substreams 0.6.4",
  "substreams-ethereum-abigen",
  "substreams-ethereum-core",
  "substreams-ethereum-derive",
@@ -1020,7 +1140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72db7f7ca7766cb393c8479add840c76139bb25818f38d6db80c2be3b49b02a2"
 dependencies = [
  "anyhow",
- "ethabi",
+ "ethabi 17.2.0",
  "heck 0.4.1",
  "hex",
  "prettyplease 0.1.25",
@@ -1036,14 +1156,14 @@ version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "533e22206a9709568ed829037ed49838d4c8c441b799f9c43a20c5a7d84027c9"
 dependencies = [
- "bigdecimal",
- "ethabi",
+ "bigdecimal 0.3.1",
+ "ethabi 17.2.0",
  "getrandom 0.2.17",
  "num-bigint",
  "prost 0.13.5",
  "prost-build 0.11.9",
  "prost-types 0.13.5",
- "substreams",
+ "substreams 0.6.4",
 ]
 
 [[package]]
@@ -1052,7 +1172,7 @@ version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b66155cfe7197efafcd46135fb8da7bfa344142c20a9c25d8fdb97cd1995cf8c"
 dependencies = [
- "ethabi",
+ "ethabi 17.2.0",
  "heck 0.4.1",
  "hex",
  "num-bigint",
@@ -1067,6 +1187,18 @@ name = "substreams-macro"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21b4fdca34da8c0250425bd798bd843f95b12dea527eeb3ba571e0b0af93d1b7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "thiserror",
+]
+
+[[package]]
+name = "substreams-macro"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c614514dd7aa3ecb5ba9152ada3ee93cce853a915408f0ff536fb3eecfa50ea"
 dependencies = [
  "proc-macro2",
  "quote",

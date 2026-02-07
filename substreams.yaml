@@ -111,12 +111,17 @@ modules:
     kind: store
     doc: |
       Accumulates realized P&L when users sell positions.
+      Calculates: (sell_price - avg_entry_price) * sell_amount
       Key: {user_address}
     initialBlock: 33605403
     updatePolicy: add
     valueType: bigint
     inputs:
       - map: map_order_fills
+      - store: store_user_positions
+        mode: get
+      - store: store_user_cost_basis
+        mode: get
 
   - name: store_user_volume
     kind: store
