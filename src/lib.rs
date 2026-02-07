@@ -14,7 +14,7 @@ mod pb;
 use hex_literal::hex;
 use pb::pnl::v1 as pnl;
 use substreams::prelude::*;
-use substreams::store::{StoreAddBigInt, StoreAddInt64, StoreGet, StoreGetProto, StoreSetProto};
+use substreams::store::{StoreAddBigInt, StoreAddInt64, StoreGet, StoreGetBigInt, StoreGetProto, StoreSetProto};
 use substreams::Hex;
 use substreams_database_change::pb::database::DatabaseChanges;
 use substreams_database_change::tables::Tables;
@@ -90,6 +90,38 @@ fn format_address(bytes: &[u8]) -> String {
     format!("0x{}", Hex(bytes).to_string())
 }
 
+/// Format price as 18-decimal string for NUMERIC(20,18) compatibility
+/// Input: maker_amount and taker_amount as BigInt
+/// Output: String like "0.500000000000000000" (always 18 decimals)
+fn format_price_decimal(maker_amount: &BigInt, taker_amount: &BigInt) -> String {
+    if taker_amount.is_zero() {
+        return "0.000000000000000000".to_string();
+    }
+
+    // Calculate: (maker_amount / taker_amount) * 10^18
+    // This gives us the price scaled to 18 decimal places
+    let scale_factor = BigInt::from_str("1000000000000000000").unwrap_or_default(); // 10^18
+    let scaled_numerator = maker_amount * &scale_factor;
+    let price_scaled = &scaled_numerator / taker_amount;
+
+    // Convert to decimal string with exactly 18 decimal places
+    let price_str = price_scaled.to_string();
+
+    if price_str.len() < 18 {
+        // Pad with leading zeros: "123" -> "0.000000000000000123"
+        format!("0.{:0>18}", price_str)
+    } else if price_str.len() == 18 {
+        // Exact 18 digits: "123456..." -> "0.123456..."
+        format!("0.{}", price_str)
+    } else {
+        // Price >= 1.0, split integer and decimal parts
+        // "12345678901234567800" -> "1.2345678901234567800"
+        let int_part = &price_str[0..price_str.len() - 18];
+        let dec_part = &price_str[price_str.len() - 18..];
+        format!("{}.{}", int_part, dec_part)
+    }
+}
+
 //==============================================
 // LAYER 1: Event Extraction
 //==============================================
@@ -127,27 +159,19 @@ fn map_order_fills(blk: eth::Block) -> Result<pnl::OrderFills, substreams::error
 
                 let (side, price, amount, token_id) = if decoded.maker_asset_id == "0" {
                     // Maker is paying USDC -> Taker is selling
-                    let price = if !taker_amount.is_zero() {
-                        maker_amount.clone() * BigInt::from(1_000_000i64) / taker_amount.clone()
-                    } else {
-                        BigInt::from(0)
-                    };
+                    // Price = maker_amount / taker_amount (tokens per USDC)
                     (
                         "sell".to_string(),
-                        format!("0.{:06}", price.to_u64()),
+                        format_price_decimal(&maker_amount, &taker_amount),
                         decoded.maker_amount_filled.clone(),
                         decoded.taker_asset_id.clone(),
                     )
                 } else {
                     // Taker is paying USDC -> Taker is buying
-                    let price = if !maker_amount.is_zero() {
-                        taker_amount.clone() * BigInt::from(1_000_000i64) / maker_amount.clone()
-                    } else {
-                        BigInt::from(0)
-                    };
+                    // Price = taker_amount / maker_amount (tokens per USDC)
                     (
                         "buy".to_string(),
-                        format!("0.{:06}", price.to_u64()),
+                        format_price_decimal(&taker_amount, &maker_amount),
                         decoded.taker_amount_filled.clone(),
                         decoded.maker_asset_id.clone(),
                     )
@@ -287,22 +311,55 @@ fn store_user_cost_basis(fills: pnl::OrderFills, store: StoreAddBigInt) {
         if fill.side == "buy" && !is_excluded_address(&fill.taker) {
             let key = format!("{}:{}", fill.taker.to_lowercase(), fill.token_id);
             store.add(0, &key, &amount);
+        } else if fill.side == "sell" && !is_excluded_address(&fill.taker) {
+            let key = format!("{}:{}", fill.taker.to_lowercase(), fill.token_id);
+            let neg_amount = -amount;
+            store.add(0, &key, &neg_amount);
         }
     }
 }
 
 /// Store user realized P&L: key = {user}, value = realized P&L delta
 #[substreams::handlers::store]
-fn store_user_realized_pnl(fills: pnl::OrderFills, store: StoreAddBigInt) {
+fn store_user_realized_pnl(
+    fills: pnl::OrderFills,
+    positions_store: StoreGetBigInt,
+    cost_basis_store: StoreGetBigInt,
+    store: StoreAddBigInt,
+) {
     for fill in fills.fills {
-        // For sells, calculate realized P&L
-        // This is simplified - full implementation would track avg entry price
         if fill.side == "sell" && !is_excluded_address(&fill.taker) {
-            let key = fill.taker.to_lowercase();
-            let pnl = BigInt::from_str(&fill.amount).unwrap_or_default();
-            store.add(0, &key, &pnl);
+            let key_user = fill.taker.to_lowercase();
+            let key_position = format!("{}:{}", key_user, fill.token_id);
+
+            // Get position quantity and cost basis
+            let quantity = positions_store.get_last(&key_position).unwrap_or_else(|| BigInt::from(0));
+            let cost_basis = cost_basis_store.get_last(&key_position).unwrap_or_else(|| BigInt::from(0));
+
+            // Calculate average entry price
+            let avg_entry_price = if !quantity.is_zero() {
+                &cost_basis / &quantity
+            } else {
+                BigInt::from(0)
+            };
+
+            // Parse sell price from fill.price (it's formatted as "0.XXXXXX")
+            let sell_price = parse_price_decimal(&fill.price);
+            let sell_amount = BigInt::from_str(&fill.amount).unwrap_or_default();
+
+            // Calculate realized P&L: (sell_price - avg_entry_price) * amount
+            let pnl = (&sell_price - &avg_entry_price) * &sell_amount;
+
+            store.add(0, &key_user, &pnl);
         }
     }
+}
+
+/// Helper to parse price from "0.XXXXXXXXXXXXXXXXXX" format (18 decimals) back to BigInt (scaled by 10^18)
+fn parse_price_decimal(price_str: &str) -> BigInt {
+    let cleaned = price_str.trim_start_matches('0').trim_start_matches('.');
+    let padded = format!("{:0>18}", cleaned);
+    BigInt::from_str(&padded).unwrap_or_default()
 }
 
 /// Store user volume: key = {user}, value = volume delta
